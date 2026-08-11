@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 # Inventory — plain dataclass; never serialized
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Inventory:
     """Runtime collection of all normalized AWS resources for one scan.
@@ -47,19 +48,11 @@ class Inventory:
     auto_scaling_groups: list[AutoScalingGroup]
     graph: ResourceGraph = field(default_factory=lambda: _make_empty_graph())
 
-    _volumes_by_id: dict[str, EBSVolume] = field(
-        default_factory=dict, init=False, repr=False
-    )
-    _snapshots_by_id: dict[str, EBSSnapshot] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _volumes_by_id: dict[str, EBSVolume] = field(default_factory=dict, init=False, repr=False)
+    _snapshots_by_id: dict[str, EBSSnapshot] = field(default_factory=dict, init=False, repr=False)
     _amis_by_id: dict[str, AMI] = field(default_factory=dict, init=False, repr=False)
-    _instances_by_id: dict[str, EC2Instance] = field(
-        default_factory=dict, init=False, repr=False
-    )
-    _asgs_by_name: dict[str, AutoScalingGroup] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _instances_by_id: dict[str, EC2Instance] = field(default_factory=dict, init=False, repr=False)
+    _asgs_by_name: dict[str, AutoScalingGroup] = field(default_factory=dict, init=False, repr=False)
     _lt_versions_by_key: dict[ResourceKey, LaunchTemplateVersion] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -103,9 +96,7 @@ class Inventory:
     def get_lt_versions_for_template(self, template_id: str) -> list[LaunchTemplateVersion]:
         return self._lt_versions_by_template_id.get(template_id, [])
 
-    def resolve_lt_version(
-        self, template_id: str, selector: str
-    ) -> LaunchTemplateVersion | None:
+    def resolve_lt_version(self, template_id: str, selector: str) -> LaunchTemplateVersion | None:
         """Resolve $Default, $Latest, or an explicit version number to an LT version."""
         versions = self.get_lt_versions_for_template(template_id)
         if not versions:
@@ -130,6 +121,7 @@ def _make_empty_graph() -> ResourceGraph:
 # ---------------------------------------------------------------------------
 # ScanResult and supporting models — Pydantic; this is the JSON output target
 # ---------------------------------------------------------------------------
+
 
 class ScanError(BaseModel):
     model_config = ConfigDict(frozen=True)

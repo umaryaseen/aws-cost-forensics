@@ -137,6 +137,7 @@ def build(inventory: Inventory) -> ResourceGraph:
 # ResourceGraph
 # =============================================================================
 
+
 def test_graph_add_and_targets() -> None:
     g = ResourceGraph()
     src = ResourceKey("ebs_volume", "vol-1", REGION, ACCOUNT)
@@ -188,6 +189,7 @@ def test_graph_multiple_targets() -> None:
 # RelationshipBuilder — all 7 relationship types
 # =============================================================================
 
+
 def test_volume_to_snapshot() -> None:
     snap = make_snap("snap-1")
     vol = make_vol("vol-1", snapshot_id="snap-1")
@@ -210,9 +212,7 @@ def test_snapshot_to_ami() -> None:
     ami = make_ami("ami-1", snapshot_ids=["snap-1"])
     inv = make_inventory(snapshots=[snap], amis=[ami])
     g = build(inv)
-    assert g.has_edge(
-        snap.resource_key, RelationshipType.SNAPSHOT_BELONGS_TO_AMI, ami.resource_key
-    )
+    assert g.has_edge(snap.resource_key, RelationshipType.SNAPSHOT_BELONGS_TO_AMI, ami.resource_key)
 
 
 def test_lt_version_to_ami() -> None:
@@ -220,9 +220,7 @@ def test_lt_version_to_ami() -> None:
     lt_ver = make_lt_ver("lt-prod", 1, image_id="ami-1")
     inv = make_inventory(amis=[ami], launch_template_versions=[lt_ver])
     g = build(inv)
-    assert g.has_edge(
-        lt_ver.resource_key, RelationshipType.LT_VERSION_USES_AMI, ami.resource_key
-    )
+    assert g.has_edge(lt_ver.resource_key, RelationshipType.LT_VERSION_USES_AMI, ami.resource_key)
 
 
 def test_lt_version_to_lt() -> None:
@@ -323,14 +321,13 @@ def test_asg_mixed_instances_base_and_override_lt() -> None:
     lt_base_key = ResourceKey("launch_template", "lt-base", REGION, ACCOUNT)
     lt_override_key = ResourceKey("launch_template", "lt-override", REGION, ACCOUNT)
     assert g.has_edge(asg.resource_key, RelationshipType.ASG_USES_LAUNCH_TEMPLATE, lt_base_key)
-    assert g.has_edge(
-        asg.resource_key, RelationshipType.ASG_USES_LAUNCH_TEMPLATE, lt_override_key
-    )
+    assert g.has_edge(asg.resource_key, RelationshipType.ASG_USES_LAUNCH_TEMPLATE, lt_override_key)
 
 
 # =============================================================================
 # Traversal chain
 # =============================================================================
+
 
 def test_full_orphan_chain_traversal() -> None:
     """vol → snap → AMI ← LT version → LT ← ASG — all edges present."""
@@ -375,6 +372,7 @@ def test_full_orphan_chain_traversal() -> None:
 # =============================================================================
 # resolve_effective_root_device
 # =============================================================================
+
 
 def test_resolve_lt_explicit_false() -> None:
     bdm = BlockDeviceMapping(device_name="/dev/xvda", delete_on_termination=False)

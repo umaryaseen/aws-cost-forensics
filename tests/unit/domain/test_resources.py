@@ -75,6 +75,7 @@ def make_asg(
 
 # --- EBSVolume ---
 
+
 def test_volume_resource_key() -> None:
     vol = make_volume("vol-123")
     assert vol.resource_key == ResourceKey("ebs_volume", "vol-123", REGION, ACCOUNT)
@@ -97,6 +98,7 @@ def test_volume_snapshot_id_set() -> None:
 
 
 # --- BlockDeviceMapping ---
+
 
 def test_bdm_delete_on_termination_none() -> None:
     """Absent AWS API field must remain None — not coerced to False."""
@@ -122,6 +124,7 @@ def test_bdm_frozen() -> None:
 
 # --- EffectiveRootDeviceConfig ---
 
+
 def test_effective_root_config_lt_explicit_false() -> None:
     cfg = EffectiveRootDeviceConfig(
         device_name="/dev/xvda",
@@ -143,6 +146,7 @@ def test_effective_root_config_unresolved_allows_none() -> None:
 
 # --- LaunchTemplateVersion ---
 
+
 def test_lt_version_resource_key() -> None:
     ltv = LaunchTemplateVersion(
         template_id="lt-prod",
@@ -153,9 +157,7 @@ def test_lt_version_resource_key() -> None:
         is_latest=True,
     )
     key = ltv.resource_key
-    assert key == ResourceKey(
-        "launch_template_version", "lt-prod", REGION, ACCOUNT, qualifier="3"
-    )
+    assert key == ResourceKey("launch_template_version", "lt-prod", REGION, ACCOUNT, qualifier="3")
 
 
 def test_lt_version_template_key() -> None:
@@ -171,6 +173,7 @@ def test_lt_version_template_key() -> None:
 
 
 # --- AutoScalingGroup.has_reachable_launch_path ---
+
 
 def test_has_reachable_launch_path_normal_asg() -> None:
     assert make_asg(max_size=10).has_reachable_launch_path is True
@@ -195,6 +198,7 @@ def test_has_reachable_launch_path_min_size_zero_does_not_matter() -> None:
 
 
 # --- AutoScalingGroup.effective_lt_ref ---
+
 
 def test_effective_lt_ref_direct() -> None:
     ref = make_lt_ref()
@@ -222,22 +226,20 @@ def test_effective_lt_ref_none_when_mixed_policy_has_no_base() -> None:
 
 # --- MixedInstancesPolicy.has_override_specific_lt ---
 
+
 def test_mixed_policy_no_override_lt() -> None:
-    policy = MixedInstancesPolicy(
-        overrides=[MixedInstancesOverride(instance_type="m5.large")]
-    )
+    policy = MixedInstancesPolicy(overrides=[MixedInstancesOverride(instance_type="m5.large")])
     assert policy.has_override_specific_lt is False
 
 
 def test_mixed_policy_with_override_lt() -> None:
     ref = make_lt_ref()
-    policy = MixedInstancesPolicy(
-        overrides=[MixedInstancesOverride(launch_template_ref=ref)]
-    )
+    policy = MixedInstancesPolicy(overrides=[MixedInstancesOverride(launch_template_ref=ref)])
     assert policy.has_override_specific_lt is True
 
 
 # --- VolumeAttachment frozen ---
+
 
 def test_volume_attachment_frozen() -> None:
     attach = VolumeAttachment(
@@ -248,6 +250,7 @@ def test_volume_attachment_frozen() -> None:
 
 
 # --- ASGInstance ---
+
 
 def test_asg_instance_fields() -> None:
     inst = ASGInstance(instance_id="i-abc123", lifecycle_state="InService")

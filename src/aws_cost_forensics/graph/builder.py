@@ -65,9 +65,7 @@ def resolve_effective_root_device(
     )
 
 
-def _resolve_root_device_name(
-    lt_ver: LaunchTemplateVersion, ami: AMI | None
-) -> str | None:
+def _resolve_root_device_name(lt_ver: LaunchTemplateVersion, ami: AMI | None) -> str | None:
     if ami and ami.root_device_name:
         return ami.root_device_name
     for bdm in lt_ver.block_device_mappings:
@@ -168,12 +166,8 @@ class RelationshipBuilder:
                     if override.launch_template_ref:
                         template_ids.append(override.launch_template_ref.template_id)
             for template_id in dict.fromkeys(template_ids):
-                lt_key = ResourceKey(
-                    "launch_template", template_id, asg.region, asg.account_id
-                )
-                self._g.add(
-                    asg.resource_key, RelationshipType.ASG_USES_LAUNCH_TEMPLATE, lt_key
-                )
+                lt_key = ResourceKey("launch_template", template_id, asg.region, asg.account_id)
+                self._g.add(asg.resource_key, RelationshipType.ASG_USES_LAUNCH_TEMPLATE, lt_key)
 
     def _asg_to_instance(self, inventory: Inventory) -> None:
         for asg in inventory.auto_scaling_groups:

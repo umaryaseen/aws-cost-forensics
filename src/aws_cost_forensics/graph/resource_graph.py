@@ -31,7 +31,5 @@ class ResourceGraph:
     def sources(self, target: ResourceKey, rel: RelationshipType) -> list[ResourceKey]:
         return list(self._in[(target, rel)])
 
-    def has_edge(
-        self, source: ResourceKey, rel: RelationshipType, target: ResourceKey
-    ) -> bool:
+    def has_edge(self, source: ResourceKey, rel: RelationshipType, target: ResourceKey) -> bool:
         return target in self._out[(source, rel)]

@@ -112,6 +112,7 @@ def make_scan_result(
 
 # --- ResourceRef ---
 
+
 def test_resource_ref_to_key() -> None:
     ref = make_ref("vol-001")
     key = ref.to_key()
@@ -126,6 +127,7 @@ def test_resource_ref_to_key_with_qualifier() -> None:
 
 
 # --- Observation ---
+
 
 def test_observation_id_canonical_format() -> None:
     obs = make_observation(rule_id="EBS_UNATTACHED_STALE", resource_id="vol-abc")
@@ -161,6 +163,7 @@ def test_observation_frozen() -> None:
 
 # --- ForensicCase ---
 
+
 def test_case_id_canonical_format() -> None:
     case = make_case()
     assert case.case_id == f"ASG_EBS_LEAK:{ACCOUNT}:{REGION}:lt-prod"
@@ -182,6 +185,7 @@ def test_case_no_candidate_root_cause_refs_field() -> None:
 
 # --- CostEstimate ---
 
+
 def test_cost_estimate_basis_is_modeled() -> None:
     est = CostEstimate(monthly_cost_usd=Decimal("12.50"), pricing_source="static_table_v1")
     assert est.basis == "modeled"
@@ -193,6 +197,7 @@ def test_cost_estimate_potential_saving_none() -> None:
 
 
 # --- ScanResult ---
+
 
 def test_scan_result_schema_version_default() -> None:
     result = make_scan_result()
@@ -234,6 +239,7 @@ def test_scan_result_monetary_values_as_decimal_strings() -> None:
 
 # --- Canonical ID uniqueness ---
 
+
 def test_canonical_ids_differ_by_region() -> None:
     id1 = f"EBS_UNATTACHED_STALE:{ACCOUNT}:us-east-1:ebs_volume:vol-abc123"
     id2 = f"EBS_UNATTACHED_STALE:{ACCOUNT}:eu-central-1:ebs_volume:vol-abc123"
@@ -248,6 +254,7 @@ def test_canonical_ids_differ_by_account() -> None:
 
 # --- ScanError ---
 
+
 def test_scan_error_fields() -> None:
     err = ScanError(
         collector="ebs",
@@ -259,6 +266,7 @@ def test_scan_error_fields() -> None:
 
 
 # --- RemediationPlan ---
+
 
 def test_remediation_plan_steps() -> None:
     plan = RemediationPlan(
