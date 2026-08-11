@@ -66,10 +66,10 @@ select = [
     "B",         # flake8-bugbear
     "C4",        # flake8-comprehensions
     "SIM",       # flake8-simplify
-    "TCH",       # flake8-type-checking
     "ANN",       # flake8-annotations
     "S",         # flake8-bandit (security)
     "RUF",       # ruff-specific
+    # TCH (type-checking) omitted: Pydantic v2 models need runtime imports
 ]
 ignore = [
     "S101",     # use of assert (fine in tests)
