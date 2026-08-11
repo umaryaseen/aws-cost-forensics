@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aws-cost-forensics"
+version = "0.1.0"
+description = "Causal AWS infrastructure cost forensics CLI — root cause over symptom count"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+authors = [{ name = "umaryaseen", email = "umar.yaseen66.uy@gmail.com" }]
+keywords = ["aws", "cost", "forensics", "ebs", "finops"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "boto3>=1.34",
+    "typer>=0.12",
+    "rich>=13.7",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.9",
+    "boto3-stubs[ec2,autoscaling,sts]>=1.34",
+    "botocore>=1.34",
+    "pre-commit>=3.7",
+]
+
+[project.scripts]
+acf = "aws_cost_forensics.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/umaryaseen/aws-cost-forensics"
+Repository = "https://github.com/umaryaseen/aws-cost-forensics"
+Issues = "https://github.com/umaryaseen/aws-cost-forensics/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aws_cost_forensics"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "UP",        # pyupgrade
+    "B",         # flake8-bugbear
+    "C4",        # flake8-comprehensions
+    "SIM",       # flake8-simplify
+    "TCH",       # flake8-type-checking
+    "ANN",       # flake8-annotations
+    "S",         # flake8-bandit (security)
+    "RUF",       # ruff-specific
+]
+ignore = [
+    "S101",     # use of assert (fine in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+no_implicit_reexport = true
+show_error_codes = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--tb=short", "-q"]
+markers = [
+    "integration: marks tests that call real AWS APIs (deselect with '-m not integration')",
+]
+
+[tool.coverage.run]
+source = ["src/aws_cost_forensics"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

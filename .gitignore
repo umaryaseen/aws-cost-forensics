@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Distribution / packaging
+pip-wheel-metadata/
+*.dist-info/
+
+# Type checking / linting cache
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# AWS credentials — NEVER commit
+.aws/
+*.pem
+credentials
+aws_credentials*
+
+# ACF scan artifacts — may contain sensitive infrastructure identifiers
+scan*.json
+*.scan.json
+forensics-*.json
+acf-output/
+
+# Environment / secrets
+.env
+.env.*
+*.env
+secrets.toml
+
+# Local config overrides
+~/.acf/
+
+# Jupyter (if ever used for exploration)
+.ipynb_checkpoints/
+*.ipynb
+
+# Build tools
+.tox/
+.nox/

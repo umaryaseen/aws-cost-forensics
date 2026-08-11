@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: ruff check
+        run: ruff check src/ tests/
+      - name: ruff format check
+        run: ruff format --check src/ tests/
+      - name: mypy
+        run: mypy src/
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+      - name: pytest (no integration)
+        run: pytest tests/ -m "not integration" --cov=aws_cost_forensics --cov-report=term-missing
+
+  security-check:
+    name: No boto3 in rules or domain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no boto3 calls in rules/
+        run: |
+          if grep -r "boto3\." src/aws_cost_forensics/rules/ 2>/dev/null; then
+            echo "ERROR: boto3 calls found in rules/ — all AWS access must go through collectors"
+            exit 1
+          fi
+          echo "OK: no boto3 calls in rules/"
+      - name: Verify no boto3 calls in domain/
+        run: |
+          if grep -r "boto3\." src/aws_cost_forensics/domain/ 2>/dev/null; then
+            echo "ERROR: boto3 calls found in domain/ — domain models must be pure Python"
+            exit 1
+          fi
+          echo "OK: no boto3 calls in domain/"
