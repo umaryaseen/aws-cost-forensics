@@ -179,8 +179,9 @@ def test_fires_once_per_defective_lt_version() -> None:
 
 
 def test_two_defective_versions_two_observations() -> None:
-    lt1 = _lt_ver(version_number=1, is_default=False, is_latest=False, bdms=[_bdm("/dev/xvda", False)])
-    lt2 = _lt_ver(version_number=2, is_default=True, is_latest=True, bdms=[_bdm("/dev/xvda", False)])
+    root_false = [_bdm("/dev/xvda", False)]
+    lt1 = _lt_ver(version_number=1, is_default=False, is_latest=False, bdms=root_false)
+    lt2 = _lt_ver(version_number=2, is_default=True, is_latest=True, bdms=root_false)
     inv = _make_inventory([lt1, lt2], amis=[_ami()])
     assert len(_run(inv)) == 2
 
@@ -382,8 +383,12 @@ def test_asg_resolved_to_different_version_not_counted() -> None:
 def test_asg_pinned_to_broken_version_default_fixed() -> None:
     # ASG pinned to v1 (broken), default = v2 (fixed)
     # The rule fires for v1; ASG references v1 → CRITICAL
-    lt_v1 = _lt_ver(version_number=1, is_default=False, is_latest=False, bdms=[_bdm("/dev/xvda", False)])
-    lt_v2 = _lt_ver(version_number=2, is_default=True, is_latest=True, bdms=[_bdm("/dev/xvda", True)])
+    lt_v1 = _lt_ver(
+        version_number=1, is_default=False, is_latest=False, bdms=[_bdm("/dev/xvda", False)]
+    )
+    lt_v2 = _lt_ver(
+        version_number=2, is_default=True, is_latest=True, bdms=[_bdm("/dev/xvda", True)]
+    )
     asg = _asg(version_selector="3", resolved_version_number=1, max_size=5)
     inv = _make_inventory([lt_v1, lt_v2], amis=[_ami()], asgs=[asg])
     obs = _run(inv)
