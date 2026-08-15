@@ -73,6 +73,7 @@ select = [
 ]
 ignore = [
     "S101",     # use of assert (fine in tests)
+    "ANN401",   # Any is legitimate for boto3 client wrappers and paginator utilities
 ]
 
 [tool.ruff.lint.per-file-ignores]
