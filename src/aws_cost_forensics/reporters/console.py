@@ -265,3 +265,51 @@ class ConsoleReporter:
                     con.print(f"       [dim]$ {step.aws_cli_hint}[/dim]")
 
         con.print()
+
+    # ── Public explain helpers ──────────────────────────────────────────────
+
+    def explain_case(
+        self,
+        case: ForensicCase,
+        scan_result: ScanResult,
+        *,
+        mask_account_id: bool = True,
+        console: Console | None = None,
+    ) -> None:
+        """Print a full explanation for a single forensic case."""
+        con = console or Console()
+        acct = _mask_acct(scan_result.account_id, mask=mask_account_id)
+        superseded_map: dict[str, list[Observation]] = {}
+        for obs in scan_result.observations:
+            if obs.superseded_by is not None:
+                superseded_map.setdefault(obs.superseded_by, []).append(obs)
+        self._case(con, case, superseded_map.get(case.case_id, []), acct)
+        if case.evidence:
+            self._evidence_detail(con, case.evidence)
+
+    def explain_observation(
+        self,
+        obs: Observation,
+        *,
+        mask_account_id: bool = True,
+        console: Console | None = None,
+    ) -> None:
+        """Print a full explanation for a single observation."""
+        con = console or Console()
+        acct = _mask_acct(obs.resource_ref.account_id, mask=mask_account_id)
+        self._observation(con, obs, acct)
+        if obs.evidence:
+            self._evidence_detail(con, obs.evidence)
+
+    def _evidence_detail(self, con: Console, evidence: list) -> None:  # type: ignore[type-arg]
+        con.rule(" Evidence ", style="dim")
+        for ev in evidence:
+            kind_style = "green" if ev.kind == "supporting" else (
+                "red" if ev.kind == "contradicting" else "yellow"
+            )
+            con.print(f"  [{kind_style}][{ev.kind.upper()}][/{kind_style}] {ev.code}")
+            con.print(f"    {ev.description}")
+            if ev.value is not None:
+                con.print(f"    value: [bold]{ev.value}[/bold]")
+            con.print(f"    [dim]source: {ev.api_source}[/dim]")
+        con.print()
