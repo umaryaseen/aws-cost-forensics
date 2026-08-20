@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 
 from aws_cost_forensics.aws.session import ConfigurationError
+from aws_cost_forensics.config import load_config
 from aws_cost_forensics.domain.inventory import ScanResult
 from aws_cost_forensics.reporters.console import ConsoleReporter
 from aws_cost_forensics.reporters.json_reporter import JsonReporter
@@ -22,9 +23,11 @@ app = typer.Typer(
 )
 
 _PROFILE_HELP = "AWS profile name (overrides ACF_PROFILE env var)"
-_REGION_HELP = "AWS region — no default; required if not set in env or config"
+_REGION_HELP = "AWS region — no default; required if not set in ACF_REGION or ~/.aws/config"
 _OUTPUT_HELP = "Write scan artifact to this JSON file path"
 _STALE_DAYS_HELP = "Age threshold (days) for EBS stale volume rule"
+_VERBOSE_HELP = "Enable debug-level logging"
+_NO_COLOR_HELP = "Disable Rich terminal color"
 
 
 @app.command()
@@ -33,17 +36,31 @@ def scan(
     region: str | None = typer.Option(None, help=_REGION_HELP),
     output: str | None = typer.Option(None, help=_OUTPUT_HELP),
     stale_days: int = typer.Option(30, "--stale-days", help=_STALE_DAYS_HELP),
-    verbose: bool = typer.Option(False, "--verbose", help="Enable debug-level logging"),
-    no_color: bool = typer.Option(False, "--no-color", help="Disable Rich terminal color"),
+    verbose: bool = typer.Option(False, "--verbose", help=_VERBOSE_HELP),
+    no_color: bool = typer.Option(False, "--no-color", help=_NO_COLOR_HELP),
 ) -> None:
     """Scan AWS account for cost forensics findings."""
-    if verbose:
+    cfg = load_config(
+        profile=profile,
+        region=region,
+        stale_days=stale_days,
+        output=output,
+        verbose=verbose,
+        no_color=no_color,
+    )
+
+    if cfg.log_level == "DEBUG":
         logging.basicConfig(level=logging.DEBUG, stream=sys.stderr)
 
-    config = ScanConfig(profile=profile, region=region, stale_volume_days=stale_days)
+    scan_config = ScanConfig(
+        profile=cfg.profile,
+        region=cfg.region,
+        stale_volume_days=cfg.stale_volume_days,
+        pricing_source=cfg.pricing_source,
+    )
 
     try:
-        result = Scanner().run(config)
+        result = Scanner().run(scan_config)
     except ConfigurationError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from None
@@ -51,13 +68,12 @@ def scan(
         typer.echo(f"Fatal error during scan: {exc}", err=True)
         raise typer.Exit(code=1) from None
 
-    con = Console(no_color=no_color)
-    ConsoleReporter().render(result, console=con)
+    con = Console(no_color=cfg.no_color)
+    ConsoleReporter().render(result, mask_account_id=cfg.mask_account_id, console=con)
 
-    if output:
-        out_path = Path(output)
-        out_path.write_text(JsonReporter().render(result))
-        typer.echo(f"\nScan artifact written to: {output}")
+    if cfg.output_path:
+        cfg.output_path.write_text(JsonReporter().render(result))
+        typer.echo(f"\nScan artifact written to: {cfg.output_path}")
 
     if result.forensic_cases:
         raise typer.Exit(code=2)
@@ -67,7 +83,7 @@ def scan(
 def explain(
     finding_id: str = typer.Argument(help="Case or observation ID to explain"),
     input: str = typer.Option(..., "--input", help="Path to saved scan artifact (JSON)"),
-    no_color: bool = typer.Option(False, "--no-color", help="Disable Rich terminal color"),
+    no_color: bool = typer.Option(False, "--no-color", help=_NO_COLOR_HELP),
 ) -> None:
     """Print full explanation for a forensic case or observation from a saved scan."""
     result = _load_scan(input)
@@ -96,7 +112,7 @@ def explain(
 def report(
     input: str = typer.Option(..., "--input", help="Path to saved scan artifact (JSON)"),
     format: str = typer.Option("text", "--format", help="Output format: text or json"),
-    no_color: bool = typer.Option(False, "--no-color", help="Disable Rich terminal color"),
+    no_color: bool = typer.Option(False, "--no-color", help=_NO_COLOR_HELP),
 ) -> None:
     """Re-render a full report from a saved scan artifact. Makes no AWS API calls."""
     result = _load_scan(input)
