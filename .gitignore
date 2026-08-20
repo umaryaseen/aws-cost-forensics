@@ -55,6 +55,8 @@ scan*.json
 *.scan.json
 forensics-*.json
 acf-output/
+# Anonymized examples in docs/ are intentionally committed
+!docs/example-output/scan-result.json
 
 # Environment / secrets
 .env

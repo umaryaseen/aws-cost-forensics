@@ -1,0 +1,218 @@
+{
+  "schema_version": "1.0",
+  "tool_version": "0.1.0",
+  "generated_at": "2024-03-15T14:22:07Z",
+  "account_id": "123456789012",
+  "region": "eu-central-1",
+  "pricing_source": "static",
+  "summary": {
+    "forensic_cases": 1,
+    "observations": 51,
+    "observations_superseded": 49,
+    "affected_resources": 46,
+    "total_monthly_waste_usd": "274.40",
+    "has_active_recurrence": true,
+    "scan_errors": 0
+  },
+  "forensic_cases": [
+    {
+      "case_id": "ASG_EBS_LEAK:123456789012:eu-central-1:lt-0a1b2c3d4e5f",
+      "case_type": "ASG_EBS_LEAK",
+      "title": "Orphan EBS chain from launch template lt-0a1b2c3d4e5f",
+      "description": "46 EBS volumes trace causally to a single Launch Template root device misconfiguration. DeleteOnTermination=false was set explicitly on the root block device, causing every terminated ASG instance to leave its volume behind. The defect is active: the ASG continues to use the broken launch template version.",
+      "severity": "HIGH",
+      "decision_class": "CONFIGURATION_DEFECT",
+      "recurrence": "ACTIVE",
+      "evidence_strength": "HIGH",
+      "root_cause_ref": {
+        "resource_id": "lt-0a1b2c3d4e5f",
+        "resource_type": "launch_template",
+        "region": "eu-central-1",
+        "account_id": "123456789012",
+        "display_name": "prod-web-lt"
+      },
+      "affected_resource_refs": [
+        {
+          "resource_id": "vol-0001aabbccdd",
+          "resource_type": "ebs_volume",
+          "region": "eu-central-1",
+          "account_id": "123456789012",
+          "display_name": null
+        },
+        {
+          "resource_id": "vol-0002aabbccdd",
+          "resource_type": "ebs_volume",
+          "region": "eu-central-1",
+          "account_id": "123456789012",
+          "display_name": null
+        }
+      ],
+      "evidence": [
+        {
+          "code": "LT_ROOT_DEVICE_DELETE_ON_TERMINATION_FALSE",
+          "kind": "supporting",
+          "description": "Launch template prod-web-lt version 7 explicitly sets DeleteOnTermination=false on root device /dev/xvda.",
+          "resource_ref": {
+            "resource_id": "lt-0a1b2c3d4e5f",
+            "resource_type": "launch_template",
+            "region": "eu-central-1",
+            "account_id": "123456789012",
+            "display_name": "prod-web-lt"
+          },
+          "api_source": "ec2:DescribeLaunchTemplateVersions",
+          "value": "/dev/xvda"
+        },
+        {
+          "code": "ASG_REFERENCES_LT_VERSION",
+          "kind": "supporting",
+          "description": "Auto Scaling Group prod-web-asg uses version_selector=$Default, resolved to version 7 (the defective version). max_size=10 — launch path is reachable.",
+          "resource_ref": {
+            "resource_id": "prod-web-asg",
+            "resource_type": "asg",
+            "region": "eu-central-1",
+            "account_id": "123456789012",
+            "display_name": "prod-web-asg"
+          },
+          "api_source": "autoscaling:DescribeAutoScalingGroups",
+          "value": null
+        },
+        {
+          "code": "LIVE_INSTANCE_ROOT_PRESERVES_VOLUME",
+          "kind": "supporting",
+          "description": "Running instance i-0abc123def has root device /dev/xvda with delete_on_termination=false, confirming the defect is materializing in production.",
+          "resource_ref": {
+            "resource_id": "i-0abc123def",
+            "resource_type": "ec2_instance",
+            "region": "eu-central-1",
+            "account_id": "123456789012",
+            "display_name": null
+          },
+          "api_source": "ec2:DescribeInstances",
+          "value": false
+        }
+      ],
+      "cost_estimate": {
+        "monthly_cost_usd": "274.40",
+        "potential_saving_usd": "274.40",
+        "basis": "modeled",
+        "pricing_source": "static",
+        "note": null
+      },
+      "remediation_plan": {
+        "priority": "FIX_SOURCE_FIRST",
+        "steps": [
+          {
+            "order": 1,
+            "title": "Create a new launch template version with DeleteOnTermination=true",
+            "description": "Copy version 7, set root device DeleteOnTermination=true. This stops future instances from leaking volumes.",
+            "aws_cli_hint": "aws ec2 create-launch-template-version --launch-template-id lt-0a1b2c3d4e5f --source-version 7 --launch-template-data '{\"BlockDeviceMappings\":[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"DeleteOnTermination\":true}}]}'"
+          },
+          {
+            "order": 2,
+            "title": "Set the new version as the default for the launch template",
+            "description": "prod-web-asg uses $Default — setting the new version as default is sufficient to fix the ASG's launch path.",
+            "aws_cli_hint": "aws ec2 modify-launch-template --launch-template-id lt-0a1b2c3d4e5f --default-version 8"
+          },
+          {
+            "order": 3,
+            "title": "Verify no ASGs are pinned to version 7",
+            "description": "ASGs using explicit version numbers (not $Default/$Latest) must be updated explicitly.",
+            "aws_cli_hint": null
+          },
+          {
+            "order": 4,
+            "title": "Snapshot and delete orphan volumes",
+            "description": "Confirm each orphan volume has no active data dependency, create a final snapshot for safety, then delete.",
+            "aws_cli_hint": "aws ec2 create-snapshot --volume-id vol-0001aabbccdd --description 'final-pre-cleanup'"
+          }
+        ],
+        "blockers": []
+      }
+    }
+  ],
+  "observations": [
+    {
+      "observation_id": "EBS_UNATTACHED_STALE:123456789012:eu-central-1:ebs_volume:vol-0001aabbccdd",
+      "rule_id": "EBS_UNATTACHED_STALE",
+      "resource_ref": {
+        "resource_id": "vol-0001aabbccdd",
+        "resource_type": "ebs_volume",
+        "region": "eu-central-1",
+        "account_id": "123456789012",
+        "display_name": null
+      },
+      "severity": "MEDIUM",
+      "decision_class": "REMEDIATION_CANDIDATE",
+      "evidence": [
+        {
+          "code": "VOLUME_UNATTACHED",
+          "kind": "supporting",
+          "description": "Volume has no EC2 attachments.",
+          "resource_ref": null,
+          "api_source": "ec2:DescribeVolumes",
+          "value": null
+        },
+        {
+          "code": "VOLUME_AGE_DAYS",
+          "kind": "supporting",
+          "description": "Volume has been unattached for 127 days.",
+          "resource_ref": null,
+          "api_source": "ec2:DescribeVolumes",
+          "value": 127
+        }
+      ],
+      "evidence_strength": "HIGH",
+      "cost_estimate": {
+        "monthly_cost_usd": "5.95",
+        "potential_saving_usd": "5.95",
+        "basis": "modeled",
+        "pricing_source": "static",
+        "note": null
+      },
+      "remediation_plan": null,
+      "superseded_by": "ASG_EBS_LEAK:123456789012:eu-central-1:lt-0a1b2c3d4e5f"
+    },
+    {
+      "observation_id": "EBS_GP2_TO_GP3:123456789012:eu-central-1:ebs_volume:vol-0099xxyyzz",
+      "rule_id": "EBS_GP2_TO_GP3",
+      "resource_ref": {
+        "resource_id": "vol-0099xxyyzz",
+        "resource_type": "ebs_volume",
+        "region": "eu-central-1",
+        "account_id": "123456789012",
+        "display_name": null
+      },
+      "severity": "LOW",
+      "decision_class": "REMEDIATION_CANDIDATE",
+      "evidence": [
+        {
+          "code": "VOLUME_IS_GP2",
+          "kind": "supporting",
+          "description": "Volume is gp2 type. gp3 provides the same baseline IOPS at lower cost.",
+          "resource_ref": null,
+          "api_source": "ec2:DescribeVolumes",
+          "value": "gp2"
+        },
+        {
+          "code": "WORKLOAD_IOPS_UNKNOWN",
+          "kind": "missing",
+          "description": "Actual workload IOPS unknown — no CloudWatch data collected. gp3 cost model uses gp2 baseline formula (3 IOPS/GiB). Verify actual I/O before migrating.",
+          "resource_ref": null,
+          "api_source": null,
+          "value": null
+        }
+      ],
+      "evidence_strength": "HIGH",
+      "cost_estimate": {
+        "monthly_cost_usd": "8.00",
+        "potential_saving_usd": "1.60",
+        "basis": "modeled",
+        "pricing_source": "static",
+        "note": "gp3 equivalent modeled at gp2 baseline IOPS. Actual workload IOPS may differ."
+      },
+      "remediation_plan": null,
+      "superseded_by": null
+    }
+  ],
+  "scan_errors": []
+}

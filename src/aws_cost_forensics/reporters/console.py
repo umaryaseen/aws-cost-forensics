@@ -118,9 +118,7 @@ class ConsoleReporter:
 
     def _scan_errors(self, con: Console, errors: list[ScanError]) -> None:
         con.print()
-        con.print(
-            f"[bold yellow]⚠  PARTIAL SCAN — {len(errors)} collector error(s)[/bold yellow]"
-        )
+        con.print(f"[bold yellow]⚠  PARTIAL SCAN — {len(errors)} collector error(s)[/bold yellow]")
         for err in errors:
             flag = "[PERMISSION_DENIED]" if err.is_permission_error else f"[{err.error_code}]"
             con.print(f"  [yellow]{err.collector}[/yellow]  {flag}  {err.message}")
@@ -181,9 +179,7 @@ class ConsoleReporter:
 
         root = case.root_cause_ref
         root_name = root.display_name or root.resource_id
-        con.print(
-            f"  Root Cause   [bold]{root_name}[/bold]  ({root.resource_type})  {root.region}"
-        )
+        con.print(f"  Root Cause   [bold]{root_name}[/bold]  ({root.resource_type})  {root.region}")
         con.print(f"  Affected     {len(case.affected_resource_refs)} resource(s)")
 
         if case.cost_estimate:
@@ -304,8 +300,10 @@ class ConsoleReporter:
     def _evidence_detail(self, con: Console, evidence: list) -> None:  # type: ignore[type-arg]
         con.rule(" Evidence ", style="dim")
         for ev in evidence:
-            kind_style = "green" if ev.kind == "supporting" else (
-                "red" if ev.kind == "contradicting" else "yellow"
+            kind_style = (
+                "green"
+                if ev.kind == "supporting"
+                else ("red" if ev.kind == "contradicting" else "yellow")
             )
             con.print(f"  [{kind_style}][{ev.kind.upper()}][/{kind_style}] {ev.code}")
             con.print(f"    {ev.description}")

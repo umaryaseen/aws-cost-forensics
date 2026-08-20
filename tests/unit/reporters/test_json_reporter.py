@@ -236,8 +236,18 @@ def test_round_trip_preserves_schema_version() -> None:
 def test_top_level_keys_present() -> None:
     result = _result(observations=[_obs()], forensic_cases=[_case()])
     data = json.loads(JsonReporter().render(result))
-    for key in ("schema_version", "tool_version", "generated_at", "account_id", "region",
-                "pricing_source", "observations", "forensic_cases", "scan_errors", "summary"):
+    for key in (
+        "schema_version",
+        "tool_version",
+        "generated_at",
+        "account_id",
+        "region",
+        "pricing_source",
+        "observations",
+        "forensic_cases",
+        "scan_errors",
+        "summary",
+    ):
         assert key in data, f"Missing top-level key: {key}"
 
 
