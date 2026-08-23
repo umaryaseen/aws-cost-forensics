@@ -1,0 +1,83 @@
+$ acf scan --region eu-central-1 --output scan.json
+
+ ────────────────────────────────────────────────────────────────────────────────
+ AWS Cost Forensics  v0.1.0  ·  schema 1.0
+ Account ****9012  ·  Region eu-central-1  ·  Pricing static
+ Generated 2024-03-15 14:22:07 UTC
+ ────────────────────────────────────────────────────────────────────────────────
+
+ Summary
+  Forensic Cases       1  (ACTIVE recurrence)
+  Observations         51  (49 superseded)
+  Affected Resources   46
+  Monthly Waste        $274.40
+  Scan Errors          0
+
+ ─────────────────────────── Forensic Cases ────────────────────────────────────
+
+[HIGH] ASG_EBS_LEAK   ACTIVE  ·  Evidence: HIGH
+  Orphan EBS chain from launch template lt-0a1b2c3d4e5f
+  46 EBS volumes trace causally to a single Launch Template root device
+  misconfiguration. DeleteOnTermination=false was set explicitly on the root
+  block device, causing every terminated ASG instance to leave its volume
+  behind. The defect is active: the ASG continues to use the broken launch
+  template version.
+  Root Cause   prod-web-lt  (launch_template)  eu-central-1
+  Affected     46 resource(s)
+  Cost         $274.40/mo
+
+  Remediation  [FIX_SOURCE_FIRST]
+    1. Create a new launch template version with DeleteOnTermination=true
+       Copy version 7, set root device DeleteOnTermination=true.
+       $ aws ec2 create-launch-template-version --launch-template-id lt-0a1b2c3d4e5f ...
+    2. Set the new version as the default for the launch template
+       prod-web-asg uses $Default — updating the default is sufficient.
+       $ aws ec2 modify-launch-template --launch-template-id lt-0a1b2c3d4e5f --default-version 8
+    3. Verify no ASGs are pinned to version 7
+    4. Snapshot and delete orphan volumes
+
+  49 superseded observation(s) — resolve this case first:
+    ↳ EBS_UNATTACHED_STALE  vol-0001aabbccdd  $5.95/mo
+    ↳ EBS_UNATTACHED_STALE  vol-0002aabbccdd  $5.95/mo
+    ↳ EBS_GP2_TO_GP3        vol-0001aabbccdd  $5.95/mo  (suppressed — resolve existence first)
+    ... (46 more)
+
+ ──────────────────── Active Observations (2) ──────────────────────────────────
+
+[LOW] EBS_GP2_TO_GP3   REMEDIATION_CANDIDATE  ·  Evidence: HIGH
+  vol-0099xxyyzz  (ebs_volume)  eu-central-1
+  save $1.60/mo
+  gp3 equivalent modeled at gp2 baseline IOPS. Actual workload IOPS may differ.
+
+[MEDIUM] EBS_UNATTACHED_STALE   REMEDIATION_CANDIDATE  ·  Evidence: HIGH
+  vol-0098wwvvuu  (ebs_volume)  eu-central-1
+  save $4.00/mo
+
+
+Scan artifact written to: scan.json
+
+
+$ echo $?
+2
+
+$ acf explain ASG_EBS_LEAK:123456789012:eu-central-1:lt-0a1b2c3d4e5f --input scan.json
+
+[HIGH] ASG_EBS_LEAK   ACTIVE  ·  Evidence: HIGH
+  Orphan EBS chain from launch template lt-0a1b2c3d4e5f
+  ...
+  Root Cause   prod-web-lt  (launch_template)  eu-central-1
+  Affected     46 resource(s)
+  Cost         $274.40/mo
+
+ ──────────────────────────── Evidence ─────────────────────────────────────────
+  [SUPPORTING] LT_ROOT_DEVICE_DELETE_ON_TERMINATION_FALSE
+    Launch template prod-web-lt version 7 explicitly sets DeleteOnTermination=false on /dev/xvda.
+    value: /dev/xvda
+    source: ec2:DescribeLaunchTemplateVersions
+  [SUPPORTING] ASG_REFERENCES_LT_VERSION
+    Auto Scaling Group prod-web-asg uses $Default → version 7 (defective). max_size=10.
+    source: autoscaling:DescribeAutoScalingGroups
+  [SUPPORTING] LIVE_INSTANCE_ROOT_PRESERVES_VOLUME
+    Running instance i-0abc123def has root /dev/xvda delete_on_termination=false.
+    value: false
+    source: ec2:DescribeInstances
