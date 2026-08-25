@@ -255,8 +255,25 @@ class RemediationPlanner:
     # ------------------------------------------------------------------
 
     def _plan_lt_dot_false(self, obs: Observation) -> RemediationPlan:
-        # Extract template_id from observation_id:
-        # "LT_DELETE_ON_TERMINATION_FALSE:{account}:{region}:launch_template_version:{id}:v{n}"
+        # Historical versions (not default, not latest, no ASG reference) have already
+        # been superseded by a corrected version — no source action needed.
+        if any(e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" for e in obs.evidence):
+            return RemediationPlan(
+                priority="HISTORICAL",
+                steps=[
+                    _step(
+                        1,
+                        "No source remediation required",
+                        "This Launch Template version is no longer the default or latest, "
+                        "and no ASG currently uses it as its effective launch configuration. "
+                        "The defect is preserved as forensic history only. "
+                        "Verify the current active LT version has DeleteOnTermination=true.",
+                    )
+                ],
+                blockers=[],
+            )
+
+        # Currently reachable defect — source must be fixed.
         resource_id = obs.resource_ref.resource_id
         region = obs.resource_ref.region
         return RemediationPlan(

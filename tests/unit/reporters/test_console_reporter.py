@@ -474,3 +474,151 @@ def test_no_crash_on_minimal_result() -> None:
     ConsoleReporter().render(_result(), console=con)
     # Just check it ran without error
     assert len(buf.getvalue()) > 0
+
+
+# ---------------------------------------------------------------------------
+# Historical LT observations — collapsed reporter rendering
+# ---------------------------------------------------------------------------
+
+
+def _historical_lt_obs(
+    template_id: str = "lt-aabbccdd",
+    version: int = 5,
+    region: str = "eu-central-1",
+) -> Observation:
+    """Build a historical LT defect observation (source already corrected)."""
+    return Observation(
+        observation_id=(
+            f"LT_DELETE_ON_TERMINATION_FALSE:123456789012:{region}"
+            f":launch_template_version:{template_id}:v{version}"
+        ),
+        rule_id="LT_DELETE_ON_TERMINATION_FALSE",
+        resource_ref=ResourceRef(
+            resource_id=template_id,
+            resource_type="launch_template_version",
+            region=region,
+            account_id="123456789012",
+            display_name=f"{template_id}:v{version}",
+        ),
+        severity=Severity.INFO,
+        decision_class=DecisionClass.CONFIGURATION_DEFECT,
+        evidence=[
+            Evidence(
+                code="LT_VERSION_HISTORICALLY_DEFECTIVE",
+                kind=EvidenceKind.SUPPORTING,
+                description=f"Version {version} is historical.",
+                api_source="ec2:DescribeLaunchTemplates",
+                value=version,
+            ),
+            Evidence(
+                code="LT_VERSION_NOT_REFERENCED_BY_ACTIVE_ASG",
+                kind=EvidenceKind.CONTRADICTING,
+                description="No active ASG uses this version.",
+                api_source="autoscaling:DescribeAutoScalingGroups",
+            ),
+        ],
+        evidence_strength=EvidenceStrength.LOW,
+    )
+
+
+def test_historical_lt_obs_collapsed_into_single_block() -> None:
+    """Multiple historical versions of the same template → one summary block."""
+    obs_list = [_historical_lt_obs(version=v) for v in range(1, 6)]  # v1-v5
+    con, buf = _con()
+    ConsoleReporter().render(
+        _result(observations=obs_list, summary=_summary(n_obs=5)),
+        console=con,
+    )
+    out = buf.getvalue()
+    # Should appear once, not five times
+    assert out.count("lt-aabbccdd") <= 2  # template ID in header and one summary line
+
+
+def test_historical_lt_obs_shows_version_range() -> None:
+    """Collapsed block shows defective version range."""
+    obs_list = [_historical_lt_obs(version=v) for v in [1, 2, 3]]
+    con, buf = _con()
+    ConsoleReporter().render(
+        _result(observations=obs_list, summary=_summary(n_obs=3)),
+        console=con,
+    )
+    out = buf.getvalue()
+    assert "v1" in out
+    assert "v3" in out
+
+
+def test_historical_lt_obs_shows_corrected_message() -> None:
+    """Collapsed block states source is corrected."""
+    obs_list = [_historical_lt_obs(version=1)]
+    con, buf = _con()
+    ConsoleReporter().render(
+        _result(observations=obs_list, summary=_summary(n_obs=1)),
+        console=con,
+    )
+    out = buf.getvalue()
+    assert "corrected" in out.lower() or "no source remediation" in out.lower()
+
+
+def test_historical_lt_obs_does_not_repeat_fix_source_steps() -> None:
+    """Multiple historical versions do NOT each print FIX_SOURCE_FIRST remediation."""
+    # Give each obs a HISTORICAL plan (as the planner would)
+    plan = RemediationPlan(
+        priority="HISTORICAL",
+        steps=[RemediationStep(order=1, title="No action", description="Source corrected.")],
+        blockers=[],
+    )
+    obs_list = [
+        Observation(
+            observation_id=(
+                f"LT_DELETE_ON_TERMINATION_FALSE:123456789012:eu-central-1"
+                f":launch_template_version:lt-aabbccdd:v{v}"
+            ),
+            rule_id="LT_DELETE_ON_TERMINATION_FALSE",
+            resource_ref=ResourceRef(
+                resource_id="lt-aabbccdd",
+                resource_type="launch_template_version",
+                region="eu-central-1",
+                account_id="123456789012",
+            ),
+            severity=Severity.INFO,
+            decision_class=DecisionClass.CONFIGURATION_DEFECT,
+            evidence=[
+                Evidence(
+                    code="LT_VERSION_HISTORICALLY_DEFECTIVE",
+                    kind=EvidenceKind.SUPPORTING,
+                    description=f"Version {v} is historical.",
+                    api_source="ec2:DescribeLaunchTemplates",
+                    value=v,
+                )
+            ],
+            evidence_strength=EvidenceStrength.LOW,
+            remediation_plan=plan,
+        )
+        for v in range(1, 6)
+    ]
+    con, buf = _con()
+    ConsoleReporter().render(
+        _result(observations=obs_list, summary=_summary(n_obs=5)),
+        console=con,
+    )
+    out = buf.getvalue()
+    # FIX_SOURCE_FIRST must not appear
+    assert "FIX_SOURCE_FIRST" not in out
+    # create-launch-template-version must not appear
+    assert "create-launch-template-version" not in out
+
+
+def test_normal_observations_still_rendered_alongside_historical() -> None:
+    """Non-historical observations continue to render normally when historical ones are present."""
+    stale_obs = _obs(rule_id="EBS_UNATTACHED_STALE", resource_id="vol-stale")
+    hist_obs = _historical_lt_obs(version=10)
+    con, buf = _con()
+    ConsoleReporter().render(
+        _result(observations=[stale_obs, hist_obs], summary=_summary(n_obs=2)),
+        console=con,
+    )
+    out = buf.getvalue()
+    assert "EBS_UNATTACHED_STALE" in out
+    assert "vol-stale" in out
+    # Historical block also present
+    assert "lt-aabbccdd" in out

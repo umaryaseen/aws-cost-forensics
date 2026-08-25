@@ -454,3 +454,83 @@ def test_region_in_cli_hints_for_stale_obs() -> None:
     plan = planner.plan_for_observation(obs)
     hints = " ".join(s.aws_cli_hint or "" for s in plan.steps)
     assert REGION in hints
+
+
+# ---------------------------------------------------------------------------
+# LT_DELETE_ON_TERMINATION_FALSE — historical defect (source already corrected)
+# ---------------------------------------------------------------------------
+
+
+def _make_historical_lt_obs(template_id: str = TEMPLATE_ID, version: int = 5) -> Observation:
+    """Observation for a historical LT defect (LT_VERSION_HISTORICALLY_DEFECTIVE evidence)."""
+    return Observation(
+        observation_id=(
+            f"LT_DELETE_ON_TERMINATION_FALSE:{ACCOUNT}:{REGION}"
+            f":launch_template_version:{template_id}:v{version}"
+        ),
+        rule_id="LT_DELETE_ON_TERMINATION_FALSE",
+        resource_ref=ResourceRef(
+            resource_id=template_id,
+            resource_type="launch_template_version",
+            region=REGION,
+            account_id=ACCOUNT,
+        ),
+        severity=Severity.INFO,
+        decision_class=DecisionClass.CONFIGURATION_DEFECT,
+        evidence=[
+            Evidence(
+                code="LT_VERSION_HISTORICALLY_DEFECTIVE",
+                kind=EvidenceKind.SUPPORTING,
+                description=f"Version {version} is historical; source already corrected.",
+                api_source="ec2:DescribeLaunchTemplates",
+                value=version,
+            ),
+            Evidence(
+                code="LT_VERSION_NOT_REFERENCED_BY_ACTIVE_ASG",
+                kind=EvidenceKind.CONTRADICTING,
+                description="No active ASG uses this version.",
+                api_source="autoscaling:DescribeAutoScalingGroups",
+            ),
+        ],
+        evidence_strength=EvidenceStrength.LOW,
+    )
+
+
+def test_historical_lt_obs_priority_is_historical() -> None:
+    obs = _make_historical_lt_obs()
+    plan = planner.plan_for_observation(obs)
+    assert plan.priority == "HISTORICAL"
+
+
+def test_historical_lt_obs_has_one_step() -> None:
+    obs = _make_historical_lt_obs()
+    plan = planner.plan_for_observation(obs)
+    assert len(plan.steps) == 1
+
+
+def test_historical_lt_obs_no_blockers() -> None:
+    obs = _make_historical_lt_obs()
+    plan = planner.plan_for_observation(obs)
+    assert plan.blockers == []
+
+
+def test_historical_lt_obs_step_has_no_cli_hint() -> None:
+    obs = _make_historical_lt_obs()
+    plan = planner.plan_for_observation(obs)
+    assert plan.steps[0].aws_cli_hint is None
+
+
+def test_historical_lt_obs_no_create_lt_version_instruction() -> None:
+    obs = _make_historical_lt_obs()
+    plan = planner.plan_for_observation(obs)
+    combined = " ".join(s.title + " " + (s.description or "") for s in plan.steps)
+    assert "create-launch-template-version" not in combined
+    assert "create a new" not in combined.lower()
+
+
+def test_current_lt_obs_still_gets_fix_source_first() -> None:
+    """Observation without LT_VERSION_HISTORICALLY_DEFECTIVE → FIX_SOURCE_FIRST unchanged."""
+    obs = _make_obs("LT_DELETE_ON_TERMINATION_FALSE", TEMPLATE_ID, "launch_template_version")
+    plan = planner.plan_for_observation(obs)
+    assert plan.priority == "FIX_SOURCE_FIRST"
+    assert len(plan.steps) == 4

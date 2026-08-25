@@ -130,6 +130,24 @@ class LTDeleteOnTerminationDetector:
                     api_source="autoscaling:DescribeAutoScalingGroups",
                 )
             )
+            # A version that is neither current default nor latest and has no
+            # ASG reference is a historical defect — the source has been corrected.
+            # Flag it so the planner and reporter can suppress source remediation.
+            if not lt_ver.is_default and not lt_ver.is_latest:
+                evidence.append(
+                    Evidence(
+                        code="LT_VERSION_HISTORICALLY_DEFECTIVE",
+                        kind=EvidenceKind.SUPPORTING,
+                        description=(
+                            f"Version {lt_ver.version_number} is neither the current default "
+                            "nor the latest version and is not referenced by any ASG. "
+                            "The defect exists in the version history but the current "
+                            "launch configuration has been corrected."
+                        ),
+                        api_source="ec2:DescribeLaunchTemplates",
+                        value=lt_ver.version_number,
+                    )
+                )
 
         if ami is None:
             evidence.append(
@@ -141,7 +159,8 @@ class LTDeleteOnTerminationDetector:
                 )
             )
 
-        severity = self._severity(referencing_asgs, reachable_asgs)
+        is_historical = not referencing_asgs and not lt_ver.is_default and not lt_ver.is_latest
+        severity = self._severity(referencing_asgs, reachable_asgs, is_historical)
         strength = self._strength(referencing_asgs, is_prominent)
 
         resource_ref = ResourceRef(
@@ -169,12 +188,16 @@ class LTDeleteOnTerminationDetector:
     def _severity(
         referencing_asgs: list[AutoScalingGroup],
         reachable_asgs: list[AutoScalingGroup],
+        is_historical: bool = False,
     ) -> Severity:
         if reachable_asgs:
             return Severity.CRITICAL
         if referencing_asgs:
             # ASG references this version but has no reachable launch path (max_size=0)
             return Severity.HIGH
+        if is_historical:
+            # Not default, not latest, no ASG — source already corrected
+            return Severity.INFO
         return Severity.MEDIUM
 
     @staticmethod
