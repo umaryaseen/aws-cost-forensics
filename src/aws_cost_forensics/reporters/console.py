@@ -86,11 +86,25 @@ class ConsoleReporter:
                 self._case(con, case, superseded_map.get(case.case_id, []), acct)
 
         active_obs = [o for o in scan_result.observations if o.superseded_by is None]
+
+        # Split historical LT observations from the main active list so they can be
+        # collapsed per template instead of repeated verbatim for every old version.
+        historical_lt_obs = [
+            o
+            for o in active_obs
+            if o.rule_id == "LT_DELETE_ON_TERMINATION_FALSE"
+            and any(e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" for e in o.evidence)
+        ]
+        historical_ids = {o.observation_id for o in historical_lt_obs}
+        normal_active_obs = [o for o in active_obs if o.observation_id not in historical_ids]
+
         if active_obs:
             label = f" Active Observations ({len(active_obs)}) "
             con.rule(label, style="bold white")
-            for obs in active_obs:
+            for obs in normal_active_obs:
                 self._observation(con, obs, acct)
+            if historical_lt_obs:
+                self._historical_lt_summary(con, historical_lt_obs)
 
         if not scan_result.forensic_cases and not active_obs:
             con.print("\n  [green]No findings.[/green] Scan completed cleanly.\n")
@@ -261,6 +275,42 @@ class ConsoleReporter:
                     con.print(f"       [dim]$ {step.aws_cli_hint}[/dim]")
 
         con.print()
+
+    def _historical_lt_summary(self, con: Console, obs_list: list[Observation]) -> None:
+        """Collapsed block for historical (source-corrected) LT defect observations."""
+        # Group by template_id (resource_ref.resource_id)
+        groups: dict[str, list[Observation]] = {}
+        for obs in obs_list:
+            groups.setdefault(obs.resource_ref.resource_id, []).append(obs)
+
+        for template_id, group in groups.items():
+            # Extract version numbers from LT_VERSION_HISTORICALLY_DEFECTIVE evidence value
+            versions: list[int] = []
+            for obs in group:
+                for ev in obs.evidence:
+                    if ev.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" and isinstance(ev.value, int):
+                        versions.append(ev.value)
+            versions.sort()
+
+            region = group[0].resource_ref.region
+            count = len(group)
+
+            con.print()
+            con.print(
+                f"[dim][INFO] LT_DELETE_ON_TERMINATION_FALSE  HISTORICAL  "
+                f"· {count} version(s)[/dim]"
+            )
+            con.print(f"  [bold]{template_id}[/bold]  (launch_template)  {region}")
+            if versions:
+                ver_range = (
+                    f"v{versions[0]}-v{versions[-1]}" if len(versions) > 1 else f"v{versions[0]}"
+                )
+                con.print(f"  [dim]Historical defective version(s): {ver_range}[/dim]")
+            con.print(
+                "  [dim]Source already corrected — current default/latest version "
+                "has DeleteOnTermination=true. No source remediation required.[/dim]"
+            )
+            con.print()
 
     # ── Public explain helpers ──────────────────────────────────────────────
 

@@ -424,3 +424,160 @@ def test_asg_with_current_instances_fires() -> None:
     obs = _run(inv)
     assert len(obs) == 1
     assert obs[0].severity == Severity.CRITICAL
+
+
+# ---------------------------------------------------------------------------
+# Historical / source-corrected defect classification (real-world AUAV scenario)
+# ---------------------------------------------------------------------------
+
+
+def _multi_version_inventory(
+    defective_versions: list[int],
+    corrected_version: int,
+    asg_version_selector: str,
+    asg_resolved_version: int,
+    max_size: int = 1,
+) -> Inventory:
+    """Build inventory with multiple LT versions, some defective, one corrected."""
+    latest = max([*defective_versions, corrected_version])
+    default = corrected_version
+
+    lt_versions = []
+    for v in defective_versions:
+        lt_versions.append(
+            _lt_ver(
+                version_number=v,
+                is_default=(v == default),
+                is_latest=(v == latest),
+                bdms=[_bdm("/dev/xvda", False)],
+            )
+        )
+    lt_versions.append(
+        _lt_ver(
+            version_number=corrected_version,
+            is_default=(corrected_version == default),
+            is_latest=(corrected_version == latest),
+            bdms=[_bdm("/dev/xvda", True)],
+        )
+    )
+
+    asg = _asg(
+        version_selector=asg_version_selector,
+        resolved_version_number=asg_resolved_version,
+        max_size=max_size,
+    )
+    return _make_inventory(lt_versions, amis=[_ami()], asgs=[asg])
+
+
+def test_historical_versions_not_active_when_asg_pinned_to_corrected() -> None:
+    """v1-v72 defective, v73 corrected, ASG pinned to v73 → no ACTIVE defect."""
+    inv = _multi_version_inventory(
+        defective_versions=list(range(1, 73)),
+        corrected_version=73,
+        asg_version_selector="73",
+        asg_resolved_version=73,
+    )
+    obs = _run(inv)
+    # All 72 defective versions fire
+    assert len(obs) == 72
+    # None should be CRITICAL or reference ASG
+    for o in obs:
+        assert o.severity == Severity.INFO, (
+            f"Expected INFO, got {o.severity} for {o.observation_id}"
+        )
+        assert not any(e.code == "ASG_REFERENCES_LT_VERSION" for e in o.evidence)
+
+
+def test_historical_versions_carry_historically_defective_evidence() -> None:
+    """Each historical defective version carries LT_VERSION_HISTORICALLY_DEFECTIVE evidence."""
+    inv = _multi_version_inventory(
+        defective_versions=[1, 2, 3],
+        corrected_version=4,
+        asg_version_selector="4",
+        asg_resolved_version=4,
+    )
+    obs = _run(inv)
+    assert len(obs) == 3
+    for o in obs:
+        codes = {e.code for e in o.evidence}
+        assert "LT_VERSION_HISTORICALLY_DEFECTIVE" in codes
+        assert "LT_VERSION_NOT_REFERENCED_BY_ACTIVE_ASG" in codes
+
+
+def test_historical_versions_preserved_in_structured_output() -> None:
+    """Historical observations remain in output — forensic record is preserved."""
+    inv = _multi_version_inventory(
+        defective_versions=[1, 2],
+        corrected_version=3,
+        asg_version_selector="3",
+        asg_resolved_version=3,
+    )
+    obs = _run(inv)
+    # Both historical versions present in output
+    assert len(obs) == 2
+    version_nums = {
+        e.value for o in obs for e in o.evidence if e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE"
+    }
+    assert version_nums == {1, 2}
+
+
+def test_current_defect_asg_pinned_to_broken_version_is_critical() -> None:
+    """ASG pinned to defective v72 with corrected v73 available → CRITICAL for v72."""
+    inv = _multi_version_inventory(
+        defective_versions=[72],
+        corrected_version=73,
+        asg_version_selector="72",
+        asg_resolved_version=72,
+        max_size=5,
+    )
+    obs = _run(inv)
+    assert len(obs) == 1
+    assert obs[0].severity == Severity.CRITICAL
+    assert not any(e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" for e in obs[0].evidence)
+    assert any(e.code == "ASG_REFERENCES_LT_VERSION" for e in obs[0].evidence)
+
+
+def test_dollar_default_resolves_to_corrected_no_active_defect() -> None:
+    """ASG uses $Default, default resolves to corrected v73 → historical versions not ACTIVE."""
+    inv = _multi_version_inventory(
+        defective_versions=[71, 72],
+        corrected_version=73,
+        asg_version_selector="$Default",
+        asg_resolved_version=73,
+    )
+    obs = _run(inv)
+    assert len(obs) == 2
+    for o in obs:
+        assert o.severity == Severity.INFO
+        assert any(e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" for e in o.evidence)
+
+
+def test_dollar_latest_resolves_to_corrected_no_active_defect() -> None:
+    """ASG uses $Latest, latest resolves to corrected v73 → historical versions not ACTIVE."""
+    inv = _multi_version_inventory(
+        defective_versions=[71, 72],
+        corrected_version=73,
+        asg_version_selector="$Latest",
+        asg_resolved_version=73,
+    )
+    obs = _run(inv)
+    assert len(obs) == 2
+    for o in obs:
+        assert o.severity == Severity.INFO
+
+
+def test_severity_medium_when_not_default_latest_but_no_historical_flag() -> None:
+    """Non-default/non-latest version with no ASG gets INFO (historical classification)."""
+    # is_default=False, is_latest=False → the historical flag fires.
+    lt = _lt_ver(
+        version_number=5,
+        is_default=False,
+        is_latest=False,
+        bdms=[_bdm("/dev/xvda", False)],
+    )
+    inv = _make_inventory([lt], amis=[_ami()], asgs=[])
+    obs = _run(inv)
+    assert len(obs) == 1
+    # No ASG, not default, not latest → historically classified
+    assert obs[0].severity == Severity.INFO
+    assert any(e.code == "LT_VERSION_HISTORICALLY_DEFECTIVE" for e in obs[0].evidence)
